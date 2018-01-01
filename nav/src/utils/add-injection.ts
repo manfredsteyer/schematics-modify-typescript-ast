@@ -4,44 +4,18 @@ import * as ts from 'typescript';
 import { insertImport } from "../schematics-angular-utils/route-utils";
 import { getSourceNodes } from "../schematics-angular-utils/ast-utils";
 import { Change, InsertChange, NoopChange } from "../schematics-angular-utils/change";
-import { findFile, constructDestinationPath } from "./find-component";
+import { findFile, constructDestinationPath } from "./find-file";
 import { join, normalize, dasherize, classify, camelize } from "@angular-devkit/core";
 
-
-export interface AddInjectionContext {
-    appComponentFileName: string;
-    relativeServiceFileName: string;
-    serviceName: string;
+interface AddInjectionContext {
+    appComponentFileName: string;       // e. g. /src/app/app.component.ts
+    relativeServiceFileName: string;    // e. g. ./core/side-menu/side-menu.service
+    serviceName: string;                // e. g. SideMenuService
 }
 
-
-export function injectServiceIntoAppComponent(options: ModuleOptions): Rule {
-    return (host: Tree) => {
-
-        let context = createAddInjectionContext(host, options);
-        let changes = buildInjectionChanges(context, host, options);
-        
-        const declarationRecorder = host.beginUpdate(context.appComponentFileName);
-        for (let change of changes) {
-            if (change instanceof InsertChange) {
-            declarationRecorder.insertLeft(change.pos, change.toAdd);
-            }
-        }
-        host.commitUpdate(declarationRecorder);
+function createAddInjectionContext(options: ModuleOptions): AddInjectionContext {
     
-        return host;
-    };
-};
-  
-
-
-export function createAddInjectionContext(host: Tree, options: ModuleOptions): AddInjectionContext {
-    
-    let appComponentFileName = findFile('app.component.ts', host, options);
-    
-    if (!appComponentFileName) {
-        throw new SchematicsException('app.component.ts not found');
-    }
+    let appComponentFileName = '/' +  options.sourceDir + '/' + options.appRoot + '/app.component.ts';
 
     let destinationPath = constructDestinationPath(options);
     let serviceName = classify(`${options.name}Service`);
@@ -55,7 +29,25 @@ export function createAddInjectionContext(host: Tree, options: ModuleOptions): A
     }
 }
 
-export function buildInjectionChanges(context: AddInjectionContext, host: Tree, options: ModuleOptions): Change[] {
+export function injectServiceIntoAppComponent(options: ModuleOptions): Rule {
+    return (host: Tree) => {
+
+        let context = createAddInjectionContext(options);
+        let changes = buildInjectionChanges(context, host, options);
+        
+        const declarationRecorder = host.beginUpdate(context.appComponentFileName);
+        for (let change of changes) {
+            if (change instanceof InsertChange) {
+                declarationRecorder.insertLeft(change.pos, change.toAdd);
+            }
+        }
+        host.commitUpdate(declarationRecorder);
+    
+        return host;
+    };
+};
+  
+function buildInjectionChanges(context: AddInjectionContext, host: Tree, options: ModuleOptions): Change[] {
 
     let text = host.read(context.appComponentFileName);
     if (!text) throw new SchematicsException(`File ${options.module} does not exist.`);
@@ -63,37 +55,27 @@ export function buildInjectionChanges(context: AddInjectionContext, host: Tree, 
 
     let sourceFile = ts.createSourceFile(context.appComponentFileName, sourceText, ts.ScriptTarget.Latest, true);
 
-    // console.log('Whole Tree');
-    // showTree(sourceFile);
-    // console.log('---');
-    // let insertImportChange = insertImport(sourceFile, context.appComponentFileName, context.serviceName, context.relativeServiceFileName );
-
     let nodes = getSourceNodes(sourceFile);
     let ctorNode = nodes.find(n => n.kind == ts.SyntaxKind.Constructor);
     
+    let constructorChange: Change;
+
     if (!ctorNode) {
-        console.log('no constructor found')
-        return [
-            createConstructorForInjection(context, nodes, options),
-            insertImport(sourceFile, context.appComponentFileName, context.serviceName, context.relativeServiceFileName) 
-        ];
+        // No constructor found
+        constructorChange = createConstructorForInjection(context, nodes, options);
     } 
     else { 
-        console.log('Constructor');
-        // TODO: Prüfen ob Argument existiert
-        //       + Falls nicht: Hinzufügen + Zeile für Nutzung einfügen
-        //showTree(ctorNode);
-        console.log('---');
-        return [
-            addConstructorArgument(context, ctorNode, options),
-            insertImport(sourceFile, context.appComponentFileName, context.serviceName, context.relativeServiceFileName)
-        ];
+        constructorChange = addConstructorArgument(context, ctorNode, options);
     }
-  
+
+    return [
+        constructorChange,
+        insertImport(sourceFile, context.appComponentFileName, context.serviceName, context.relativeServiceFileName) 
+    ];
 
 }
 
-export function addConstructorArgument(context: AddInjectionContext, ctorNode: ts.Node, options: ModuleOptions): Change {
+function addConstructorArgument(context: AddInjectionContext, ctorNode: ts.Node, options: ModuleOptions): Change {
 
     let siblings = ctorNode.getChildren();
 
@@ -139,7 +121,7 @@ function findSuccessor(node: ts.Node, searchPath: ts.SyntaxKind[] ) {
 }
 
 
-export function createConstructorForInjection(context: AddInjectionContext, nodes: ts.Node[], options: ModuleOptions): Change {
+function createConstructorForInjection(context: AddInjectionContext, nodes: ts.Node[], options: ModuleOptions): Change {
     let classNode = nodes.find(n => n.kind === ts.SyntaxKind.ClassKeyword);
     
     if (!classNode) {
@@ -177,6 +159,7 @@ export function createConstructorForInjection(context: AddInjectionContext, node
 
     let toAdd = `
   constructor(private ${camelize(context.serviceName)}: ${classify(context.serviceName)}) {
+    // ${camelize(context.serviceName)}.show = true;
   }
 `;
     return new InsertChange(context.appComponentFileName, listNode.pos+1, toAdd);

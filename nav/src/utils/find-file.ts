@@ -4,6 +4,7 @@ import { dasherize, join, Path } from "@angular-devkit/core";
 
 
 export function constructDestinationPath(options: ModuleOptions): string {
+    
     return '/' + (options.sourceDir? options.sourceDir + '/' : '') + (options.path || '')
                 + (options.flat ? '' : '/' + dasherize(options.name));
 }

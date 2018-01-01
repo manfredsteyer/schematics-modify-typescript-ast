@@ -13,7 +13,7 @@ function showTree(node, indent) {
         showTree(child, indent + '    ');
     }
 }
-var buffer = fs.readFileSync('../demo-app/src/app/app.component.ts');
+var buffer = fs.readFileSync('demo.ts');
 var content = buffer.toString('utf-8');
 var node = ts.createSourceFile('app.component.ts', content, ts.ScriptTarget.Latest, true);
 showTree(node);

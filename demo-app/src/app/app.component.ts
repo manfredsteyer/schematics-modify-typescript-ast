@@ -9,9 +9,8 @@ import { SideMenuService } from './core/side-menu/side-menu.service';
 })
 export class AppComponent {
 
-  constructor(private xx: string,
-    private sideMenuService: SideMenuService) {
+  constructor(private sideMenuService: SideMenuService) {
+    // sideMenuService.show = true;
   }
-
   title = 'app';
 }
