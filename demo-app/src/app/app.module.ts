@@ -3,6 +3,7 @@ import { NgModule } from '@angular/core';
 
 import { AppComponent } from './app.component';
 import { CoreModule } from './core/core.module';
+import { SideMenuService } from './core/side-menu/side-menu.service';
 
 @NgModule({
   imports: [
@@ -12,7 +13,7 @@ import { CoreModule } from './core/core.module';
   declarations: [
     AppComponent
   ],
-  providers: [],
+  providers: [SideMenuService],
   bootstrap: [AppComponent]
 })
 export class AppModule { }
